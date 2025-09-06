@@ -103,7 +103,6 @@
   <canvas id="humChart" width="400" height="200"></canvas>
   <canvas id="windChart" width="400" height="200"></canvas>
   <canvas id="pressureChart" width="400" height="200"></canvas>
-  <canvas id="rainChart" width="400" height="200"></canvas>
 
   <script>
     const broker = "wss://broker.hivemq.com:8884/mqtt";
@@ -135,7 +134,6 @@
     const humChart = createChart(document.getElementById("humChart"), "Humidity (%)", "#4fc3f7");
     const windChart = createChart(document.getElementById("windChart"), "Wind Speed (m/s)", "#81c784");
     const pressureChart = createChart(document.getElementById("pressureChart"), "Pressure (hPa)", "#ba68c8");
-    const rainChart = createChart(document.getElementById("rainChart"), "Rain Status (0=No,1=Yes)", "#ffd54f", true);
 
     client.on("connect", () => {
       console.log("Connected to MQTT");
