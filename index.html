@@ -183,7 +183,9 @@
       if (latestWind !== null) updateChart(windChart, chartData.wind, latestWind);
       if (latestPressure !== null) updateChart(pressureChart, chartData.pressure, latestPressure);
 
-
+      if (latestRain !== null) {
+        if (latestRain === 1) rainTimestamps.push(new Date());
+        updateChart(rainChart, chartData.rain, latestRain);
       }
 
       updateRainDuration();
@@ -242,4 +244,3 @@
   </script>
 </body>
 </html>
-
