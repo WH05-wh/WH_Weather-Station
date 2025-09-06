@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 Weather Station</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f7f9;
+      text-align: center;
+      padding: 30px;
+    }
+    h1 {
+      color: #333;
+    }
+    .card {
+      display: inline-block;
+      width: 220px;
+      margin: 15px;
+      padding: 20px;
+      border-radius: 12px;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .value {
+      font-size: 24px;
+      margin-top: 10px;
+      color: #0077cc;
+    }
+    .chart-container {
+      width: 800px;
+      height: 500px;
+      margin: 30px auto;
+    
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    #charts { display: flex; justify-content: center; gap: 100px; flex-wrap: wrap; }
+    canvas { background: #f7f7f7; border-radius: 10px; padding: 10px; }
+
+  </style>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- MQTT.js -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+  <h1>🌤 ESP32 Weather Station Dashboard</h1>
+
+  <!-- Live values -->
+  <div class="card">
+    <h3>Temperature</h3>
+    <div class="value" id="temp">-- °C</div>
+  </div>
+
+  <div class="card">
+    <h3>Humidity</h3>
+    <div class="value" id="hum">-- %</div>
+  </div>
+
+  <div class="card">
+    <h3>Pressure</h3>
+    <div class="value" id="pressure">-- hPa</div>
+  </div>
+
+  <div class="card">
+    <h3>Rain</h3>
+    <div class="value" id="rain">--</div>
+  </div>
+
+  <div class="card">
+    <h3>Wind Speed</h3>
+    <div class="value" id="windspeed">-- m/s</div>
+  </div>
+
+  <div class="card">
+    <h3>Wind Direction</h3>
+    <div class="value" id="winddir">-- °</div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-container">
+    <h3>Temperature & Humidity</h3>
+    <canvas id="tempHumChart"></canvas>
+  </div>
+
+  <div class="chart-container">
+    <h3>Wind Speed</h3>
+    <canvas id="windChart"></canvas>
+  </div>
+
+  <div class="chart-container">
+    <h3>Pressure</h3>
+    <canvas id="pressureChart"></canvas>
+  </div>
+
+  <script>
+    // === MQTT Setup ===
+    const client = mqtt.connect("ws://broker.hivemq.com:8000/mqtt");
+
+    // Chart data arrays
+    const labels = [];
+    const tempData = [];
+    const humData = [];
+    const windData = [];
+    const pressureData = [];
+
+    // === Chart.js Configs ===
+    const tempHumChart = new Chart(document.getElementById('tempHumChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Temperature (°C)', data: tempData, borderColor: 'red', fill: false },
+          { label: 'Humidity (%)', data: humData, borderColor: 'blue', fill: false }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    const windChart = new Chart(document.getElementById('windChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Wind Speed (m/s)', data: windData, borderColor: 'green', fill: false }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    const pressureChart = new Chart(document.getElementById('pressureChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Pressure (hPa)', data: pressureData, borderColor: 'orange', fill: false }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    // === MQTT Events ===
+    client.on("connect", () => {
+      console.log("Connected to MQTT broker");
+      client.subscribe("esp32/temp");
+      client.subscribe("esp32/hum");
+      client.subscribe("esp32/pressure");
+      client.subscribe("esp32/rain");
+      client.subscribe("esp32/windspeed");
+      client.subscribe("esp32/winddir");
+    });
+
+    client.on("message", (topic, message) => {
+      const payload = message.toString();
+      const timeLabel = new Date().toLocaleTimeString();
+
+      if (!labels.includes(timeLabel)) {
+        labels.push(timeLabel);
+        if (labels.length > 20) labels.shift(); // keep last 20 points
+      }
+
+      if (topic === "esp32/temp") {
+        document.getElementById("temp").innerText = payload + " °C";
+        tempData.push(parseFloat(payload));
+        if (tempData.length > 20) tempData.shift();
+        tempHumChart.update();
+      }
+
+      if (topic === "esp32/hum") {
+        document.getElementById("hum").innerText = payload + " %";
+        humData.push(parseFloat(payload));
+        if (humData.length > 20) humData.shift();
+        tempHumChart.update();
+      }
+
+      if (topic === "esp32/pressure") {
+        document.getElementById("pressure").innerText = payload + " hPa";
+        pressureData.push(parseFloat(payload));
+        if (pressureData.length > 20) pressureData.shift();
+        pressureChart.update();
+      }
+
+      if (topic === "esp32/rain") {
+        document.getElementById("rain").innerText = (payload == "0") ? "🌧 Yes" : "☀️ No";
+      }
+
+      if (topic === "esp32/windspeed") {
+        document.getElementById("windspeed").innerText = payload + " m/s";
+        windData.push(parseFloat(payload));
+        if (windData.length > 20) windData.shift();
+        windChart.update();
+      }
+
+      if (topic === "esp32/winddir") {
+        document.getElementById("winddir").innerText = payload + " °";
+      }
+    });
+  </script>
+</body>
+</html>
