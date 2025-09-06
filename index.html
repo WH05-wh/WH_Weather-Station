@@ -39,6 +39,7 @@
       font-size: 24px;
       margin-top: 10px;
       color: #4fc3f7;
+      transition: color 0.5s;
     }
     .status-dot {
       display: inline-block;
@@ -196,7 +197,22 @@
       document.body.classList.toggle("dark-mode");
 
       let dark = document.body.classList.contains("dark-mode");
-      [tempChart, humChart, windChart, pressureChart, rainChart].forEach(chart => {
+      const valueEls = document.querySelectorAll(".value");
+      valueEls.forEach((el) => {
+        if(dark) {
+          // Restore original sensor colors
+          if(el.id === "temp") el.style.color = "#ff5252";
+          else if(el.id === "hum") el.style.color = "#4fc3f7";
+          else if(el.id === "windspeed") el.style.color = "#81c784";
+          else if(el.id === "pressure") el.style.color = "#ba68c8";
+          else el.style.color = "#4fc3f7"; // default for others
+        } else {
+          // Light mode color
+          el.style.color = "#000";
+        }
+      });
+
+      [tempChart, humChart, windChart, pressureChart].forEach(chart => {
         chart.options.scales.x.ticks.color = dark ? "#bbb" : "#333";
         chart.options.scales.x.grid.color = dark ? "#333" : "#ddd";
         chart.options.scales.y.ticks.color = dark ? "#bbb" : "#333";
