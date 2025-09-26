@@ -114,7 +114,7 @@
   }
 
   function sendRainEmail() {
-    fetch("http://localhost:3000/send-alert", {
+    fetch("https://render.com/docs/web-services#port-binding", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -283,4 +283,5 @@
 </script>
 </body>
 </html>
+
 
