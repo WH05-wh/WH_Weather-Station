@@ -33,13 +33,11 @@
       background: #1e1e1e;
       color: inherit;
       box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-      transition: background 0.5s, color 0.5s;
     }
     .value {
       font-size: 24px;
       margin-top: 10px;
       color: #4fc3f7;
-      transition: color 0.5s;
     }
     .status-dot {
       display: inline-block;
@@ -54,7 +52,6 @@
       background: #1e1e1e;
       border-radius: 12px;
       padding: 15px;
-      transition: background 0.3s;
     }
     .buttons { margin: 20px; }
     button {
@@ -64,12 +61,7 @@
       border-radius: 8px;
       cursor: pointer;
       font-size: 14px;
-      transition: background 0.3s, color 0.3s;
     }
-    .dark-mode { background: #121212; color: #e0e0e0; }
-    .light-mode { background: #f9f9f9; color: #333; }
-    .light-mode .card, .light-mode .status-card { background: #fff; color: #333; }
-    .light-mode canvas { background: #fff; }
     .toggle-btn { background: #4fc3f7; color: #000; }
     .csv-btn { background: #81c784; color: #000; }
   </style>
@@ -79,7 +71,7 @@
 <body class="dark-mode">
   <h1>ESP32 Weather Station Dashboard</h1>
 
-  <!-- ESP32 Status below title -->
+  <!-- ESP32 Status -->
   <div class="status-card" id="espStatusCard">
     <span class="status-dot" id="espDot" style="background:red;"></span>
     <span>ESP32 Status: </span><span class="value" id="espStatus">Offline</span>
@@ -88,16 +80,16 @@
   <div class="buttons">
     <button class="toggle-btn" onclick="toggleDarkMode()">🌗 Toggle Dark Mode</button>
     <button class="csv-btn" onclick="downloadCSV()">⬇️ Download CSV</button>
+    <button class="csv-btn" onclick="testRain()">🌧 Test Rain</button> <!-- ✅ Test Button -->
   </div>
 
-  <!-- Sensor status cards (including Rain Duration) -->
+  <!-- Sensor Cards -->
   <div class="card"><h3>Temperature</h3><div class="value" id="temp">-- °C</div></div>
   <div class="card"><h3>Humidity</h3><div class="value" id="hum">-- %</div></div>
   <div class="card"><h3>Pressure</h3><div class="value" id="pressure">-- hPa</div></div>
   <div class="card"><h3>Rain</h3><div class="value" id="rain">--</div></div>
   <div class="card"><h3>Rain Duration</h3><div class="value" id="rainDuration">-- min in last 30 min</div></div>
   <div class="card"><h3>Wind Speed</h3><div class="value" id="windspeed">-- m/s</div></div>
-  <div class="card"><h3>Wind Direction</h3><div class="value" id="winddir">-- °</div></div>
 
   <!-- Charts -->
   <canvas id="tempChart" width="400" height="200"></canvas>
@@ -105,158 +97,189 @@
   <canvas id="windChart" width="400" height="200"></canvas>
   <canvas id="pressureChart" width="400" height="200"></canvas>
 
-  <script>
-    const broker = "wss://broker.hivemq.com:8884/mqtt";
-    const clientId = "ESP32Dashboard-" + Math.random().toString(16).substr(2, 8);
-    const client = mqtt.connect(broker, { clientId });
+<script>
+  const broker = "wss://broker.hivemq.com:8884/mqtt";
+  const clientId = "ESP32Dashboard-" + Math.random().toString(16).substr(2, 8);
+  const client = mqtt.connect(broker, { clientId });
 
-    let latestTemp = null, latestHum = null, latestWind = null, latestPressure = null;
-    let latestRain = null;
-    let chartData = { time: [], temp: [], hum: [], wind: [], pressure: [], rain: [] };
-    let rainTimestamps = [];
-    const MAX_POINTS = 180;
+  let latestTemp = null, latestHum = null, latestWind = null, latestPressure = null;
+  let latestRain = null;
+  let chartData = { time: [], temp: [], hum: [], wind: [], pressure: [], rain: [] };
+  let rainTimestamps = [];
+  const MAX_POINTS = 180;
 
-    function createChart(ctx, label, color, step=false) {
-      return new Chart(ctx, {
-        type: "line",
-        data: { labels: [], datasets: [{ label, data: [], borderColor: color, backgroundColor: color+"33", borderWidth: 2, tension: step?0:0.3, stepped: step, fill: true }] },
-        options: {
-          responsive: true,
-          scales: {
-            x: { ticks: { color: "#bbb" }, grid: { color: "#333" } },
-            y: { beginAtZero: true, ticks: { color: "#bbb" }, grid: { color: "#333" } }
-          },
-          plugins: { legend: { labels: { color: "#fff" } } }
-        }
-      });
+  // ---- Notification Setup ----
+  if ("Notification" in window && Notification.permission !== "granted") {
+    Notification.requestPermission();
+  }
+
+  function sendRainEmail() {
+    fetch("http://localhost:3000/send-alert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: "🌧 Rain Detected!",
+        message: "Rain has been detected by the ESP32 Weather Station."
+      })
+    })
+    .then(res => res.text())
+    .then(data => console.log("✅ Email Response:", data))
+    .catch(err => console.error("❌ Email Error:", err));
+  }
+
+  function testRain() {
+    document.getElementById("rain").innerText = "🌧 Yes (Test)";
+    latestRain = 1;
+    sendRainNotification();  // Browser notification
+    sendRainEmail();         // 📧 Gmail notification
+    console.log("✅ Test Rain triggered manually");
+
+    // Auto reset logic...
+  }
+
+
+  // ---- Chart.js Setup ----
+  function createChart(ctx, label, color) {
+    return new Chart(ctx, {
+      type: "line",
+      data: { labels: [], datasets: [{ label, data: [], borderColor: color, fill: true, backgroundColor: color+"33" }] },
+      options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  const tempChart = createChart(document.getElementById("tempChart"), "Temperature (°C)", "#ff5252");
+  const humChart = createChart(document.getElementById("humChart"), "Humidity (%)", "#4fc3f7");
+  const windChart = createChart(document.getElementById("windChart"), "Wind Speed (m/s)", "#81c784");
+  const pressureChart = createChart(document.getElementById("pressureChart"), "Pressure (hPa)", "#ba68c8");
+
+  // ---- MQTT ----
+  client.on("connect", () => {
+    updateESPStatus(true);
+    client.subscribe("esp32/temp");
+    client.subscribe("esp32/hum");
+    client.subscribe("esp32/pressure");
+    client.subscribe("esp32/rain");
+    client.subscribe("esp32/windspeed");
+    client.subscribe("esp32/winddir");
+  });
+  client.on("close", () => updateESPStatus(false));
+
+  client.on("message", (topic, message) => {
+    const value = message.toString();
+    switch (topic) {
+      case "esp32/temp": latestTemp = parseFloat(value); document.getElementById("temp").innerText = value+" °C"; break;
+      case "esp32/hum": latestHum = parseFloat(value); document.getElementById("hum").innerText = value+" %"; break;
+      case "esp32/pressure": latestPressure = parseFloat(value); document.getElementById("pressure").innerText = value+" hPa"; break;
+      case "esp32/rain":
+        document.getElementById("rain").innerText = (value=="0") ? "🌧 Yes" : "☀️ No";
+        if (value=="0") { latestRain=1; sendRainNotification(); } else latestRain=0;
+        break;
+      case "esp32/windspeed": latestWind=parseFloat(value); document.getElementById("windspeed").innerText=value+" m/s"; break;
+      case "esp32/winddir": document.getElementById("winddir").innerText=value+" °"; break;
+    }
+  });
+
+  // ---- History Save/Load ----
+  function saveHistory(key, chart) {
+    localStorage.setItem(key, JSON.stringify({
+      labels: chart.data.labels,
+      data: chart.data.datasets[0].data
+    }));
+  }
+
+  function loadHistory(key, chart) {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      chart.data.labels = parsed.labels || [];
+      chart.data.datasets[0].data = parsed.data || [];
+      chart.update();
+    }
+  }
+
+  // ---- Chart Update Loop ----
+  setInterval(() => {
+    const now = new Date().toLocaleTimeString();
+    function updateChart(chart, value, key) {
+      chart.data.labels.push(now);
+      chart.data.datasets[0].data.push(value);
+      if (chart.data.labels.length > MAX_POINTS) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+      chart.update();
+      saveHistory(key, chart);
     }
 
-    const tempChart = createChart(document.getElementById("tempChart"), "Temperature (°C)", "#ff5252");
-    const humChart = createChart(document.getElementById("humChart"), "Humidity (%)", "#4fc3f7");
-    const windChart = createChart(document.getElementById("windChart"), "Wind Speed (m/s)", "#81c784");
-    const pressureChart = createChart(document.getElementById("pressureChart"), "Pressure (hPa)", "#ba68c8");
+    if (latestTemp!==null) updateChart(tempChart, latestTemp, "tempHistory");
+    if (latestHum!==null) updateChart(humChart, latestHum, "humHistory");
+    if (latestWind!==null) updateChart(windChart, latestWind, "windHistory");
+    if (latestPressure!==null) updateChart(pressureChart, latestPressure, "pressureHistory");
 
-    client.on("connect", () => {
-      console.log("Connected to MQTT");
-      updateESPStatus(true);
-      client.subscribe("esp32/temp");
-      client.subscribe("esp32/hum");
-      client.subscribe("esp32/pressure");
-      client.subscribe("esp32/rain");
-      client.subscribe("esp32/windspeed");
-      client.subscribe("esp32/winddir");
-    });
+    if (latestRain===1) rainTimestamps.push(new Date());
+    updateRainDuration();
+  }, 5000);
 
-    client.on("close", () => updateESPStatus(false));
+  // ---- Helpers ----
+  function updateESPStatus(online) {
+    const statusEl=document.getElementById("espStatus");
+    const dotEl=document.getElementById("espDot");
+    if (online) { statusEl.innerText="Online"; dotEl.style.background="green"; }
+    else { statusEl.innerText="Offline"; dotEl.style.background="red"; }
+  }
 
-    client.on("message", (topic, message) => {
-      const value = message.toString();
-      switch (topic) {
-        case "esp32/temp": document.getElementById("temp").innerText = value + " °C"; latestTemp = parseFloat(value); break;
-        case "esp32/hum": document.getElementById("hum").innerText = value + " %"; latestHum = parseFloat(value); break;
-        case "esp32/pressure": document.getElementById("pressure").innerText = value + " hPa"; latestPressure = parseFloat(value); break;
-        case "esp32/rain":
-          document.getElementById("rain").innerText = (value == "0") ? "🌧 Yes" : "☀️ No";
-          latestRain = (value == "0") ? 1 : 0; 
-          break;
-        case "esp32/windspeed": document.getElementById("windspeed").innerText = value + " m/s"; latestWind = parseFloat(value); break;
-        case "esp32/winddir": document.getElementById("winddir").innerText = value + " °"; break;
-      }
-    });
+  // ---- Test Rain Simulation with Auto Reset ----
+  function testRain() {
+    // Simulate rain detected
+    document.getElementById("rain").innerText = "🌧 Yes (Test)";
+    latestRain = 1;
+    sendRainNotification();  // 🔔 trigger notification
+    console.log("✅ Test Rain triggered manually");
 
-    setInterval(() => {
-      const now = new Date().toLocaleTimeString();
+  // Disable button temporarily
+    const btn = document.querySelector("button[onclick='testRain()']");
+    btn.disabled = true;
+    btn.innerText = "🌧 Testing...";
 
-      function updateChart(chart, dataArray, value) {
-        chart.data.labels.push(now);
-        chart.data.datasets[0].data.push(value);
-        dataArray.push(value);
-        if (chart.data.labels.length > MAX_POINTS) {
-          chart.data.labels.shift();
-          chart.data.datasets[0].data.shift();
-          dataArray.shift();
-        }
-        chart.update();
-      }
+  // Auto reset back to normal after 5 seconds
+    setTimeout(() => {
+      document.getElementById("rain").innerText = "☀️ No (Normal)";
+      latestRain = 0;
+      console.log("☀️ Test Rain reset back to normal");
 
-      if (latestTemp !== null) updateChart(tempChart, chartData.temp, latestTemp);
-      if (latestHum !== null) updateChart(humChart, chartData.hum, latestHum);
-      if (latestWind !== null) updateChart(windChart, chartData.wind, latestWind);
-      if (latestPressure !== null) updateChart(pressureChart, chartData.pressure, latestPressure);
-
-      if (latestRain !== null) {
-        if (latestRain === 1) rainTimestamps.push(new Date());
-        updateChart(rainChart, chartData.rain, latestRain);
-      }
-
-      updateRainDuration();
+      // Re-enable button
+      btn.disabled = false;
+      btn.innerText = "🌧 Test Rain";
     }, 5000);
+  }
 
-    function toggleDarkMode() {
-      document.body.classList.toggle("light-mode");
-      document.body.classList.toggle("dark-mode");
+  function updateRainDuration() {
+    const now=new Date();
+    const THIRTY_MIN=30*60*1000;
+    rainTimestamps=rainTimestamps.filter(ts => now-ts<=THIRTY_MIN);
+    const rainDuration=rainTimestamps.length*5/60;
+    document.getElementById("rainDuration").innerText=`${Math.round(rainDuration)} min in last 30 min`;
+  }
 
-      let dark = document.body.classList.contains("dark-mode");
-      const valueEls = document.querySelectorAll(".value");
-      valueEls.forEach((el) => {
-        if(dark) {
-          // Restore original sensor colors
-          if(el.id === "temp") el.style.color = "#ff5252";
-          else if(el.id === "hum") el.style.color = "#4fc3f7";
-          else if(el.id === "windspeed") el.style.color = "#81c784";
-          else if(el.id === "pressure") el.style.color = "#ba68c8";
-          else el.style.color = "#4fc3f7"; // default for others
-        } else {
-          // Light mode color
-          el.style.color = "#000";
-        }
-      });
-
-      [tempChart, humChart, windChart, pressureChart].forEach(chart => {
-        chart.options.scales.x.ticks.color = dark ? "#bbb" : "#333";
-        chart.options.scales.x.grid.color = dark ? "#333" : "#ddd";
-        chart.options.scales.y.ticks.color = dark ? "#bbb" : "#333";
-        chart.options.scales.y.grid.color = dark ? "#333" : "#ddd";
-        chart.options.plugins.legend.labels.color = dark ? "#fff" : "#333";
-        chart.update();
-      });
+  function downloadCSV() {
+    let csv="Time,Temperature,Humidity,Wind,Pressure,Rain\n";
+    const len=tempChart.data.labels.length;
+    for (let i=0;i<len;i++) {
+      csv+=`${tempChart.data.labels[i]},${tempChart.data.datasets[0].data[i]||""},${humChart.data.datasets[0].data[i]||""},${windChart.data.datasets[0].data[i]||""},${pressureChart.data.datasets[0].data[i]||""},${latestRain||""}\n`;
     }
+    const blob=new Blob([csv],{type:"text/csv"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download="weather_history.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
 
-    function downloadCSV() {
-      let csv = "Time,Temperature,Humidity,Wind Speed,Pressure,Rain\n";
-      for (let i = 0; i < chartData.time.length; i++) {
-        csv += `${chartData.time[i]},${chartData.temp[i]||""},${chartData.hum[i]||""},${chartData.wind[i]||""},${chartData.pressure[i]||""},${chartData.rain[i]||""}\n`;
-      }
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "weather_history.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function updateESPStatus(online) {
-      const statusEl = document.getElementById("espStatus");
-      const dotEl = document.getElementById("espDot");
-      if (online) {
-        statusEl.innerText = "Online";
-        dotEl.style.background = "green";
-      } else {
-        statusEl.innerText = "Offline";
-        dotEl.style.background = "red";
-      }
-    }
-
-    setInterval(() => updateESPStatus(client.connected), 3000);
-
-    function updateRainDuration() {
-      const now = new Date();
-      const THIRTY_MIN = 30 * 60 * 1000;
-      rainTimestamps = rainTimestamps.filter(ts => now - ts <= THIRTY_MIN);
-      const rainDuration = rainTimestamps.length * 5 / 60; // each tick = 5s
-      document.getElementById("rainDuration").innerText = `${Math.round(rainDuration)} min in last 30 min`;
-    }
-  </script>
+  // ---- Restore History on Page Load ----
+  window.onload=()=> {
+    loadHistory("tempHistory", tempChart);
+    loadHistory("humHistory", humChart);
+    loadHistory("windHistory", windChart);
+    loadHistory("pressureHistory", pressureChart);
+  };
+</script>
 </body>
 </html>
