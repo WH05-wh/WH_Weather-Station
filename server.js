@@ -1,42 +1,46 @@
+// Import required packages
 const express = require("express");
 const bodyParser = require("body-parser");
 const nodemailer = require("nodemailer");
+const cors = require("cors");
 
 const app = express();
 app.use(bodyParser.json());
+app.use(cors());
 
-// ✅ Gmail SMTP setup (uses environment variables)
-const transporter = nodemailer.createTransport({
+// 📧 Configure Gmail transporter
+let transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.wooihong0185@gmail.com,
-    pass: process.env.jkjc xmbo hief mtwr
+    user: "wooihong0185@gmail.com",     
+    pass: "jkjc xmbo hief mtwr"         
   }
 });
 
-// ✅ POST /send-email endpoint
+// 📩 API route to send email
 app.post("/send-email", (req, res) => {
   const { subject, message } = req.body;
 
-  const mailOptions = {
-    from: process.env.wooihong0185@gmail.com,
-    to: process.env.EMAIL_TO || process.env.wooihong0185@gmail.com, // send to yourself or another
-    subject,
-    text: message
+  let mailOptions = {
+    from: '"Rainy Day" <wooihong0185@gmail.com>',
+    to: "wooihong0185@gmail.com",         //recipient email
+    subject: subject || "WH_IOT-Weather-Station",
+    text: message || "The day is rain!"
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
-      console.error("❌ Email error:", error);
-      return res.status(500).json({ success: false, error: error.message });
+      console.error("❌ Error:", error);
+      return res.status(500).json({ success: false, error });
     }
     console.log("✅ Email sent:", info.response);
-    res.json({ success: true, message: "Email sent!" });
+    res.json({ success: true, info });
   });
 });
 
-// ✅ Start server (Render needs process.env.PORT)
+// 🚀 Use Render's port or fallback to 3000 for local
 const PORT = process.env.PORT || 4000;
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(✅ Server running on port ${PORT});
 });
