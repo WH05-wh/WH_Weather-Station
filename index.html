@@ -114,7 +114,7 @@
   }
 
   function sendRainEmail() {
-    fetch("https://render.com/docs/web-services#port-binding", {
+    fetch("https://wh-weather-station-1.onrender.com", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -283,5 +283,6 @@
 </script>
 </body>
 </html>
+
 
 
