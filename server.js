@@ -38,10 +38,11 @@ app.post("/send-email", (req, res) => {
   });
 });
 
-// 🚀 Use Render's port or fallback to 4000 for local
-const PORT = process.env.PORT || 4000;
+// 🚀 Use Render's port or fallback to 3000 for local
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+
 
 
