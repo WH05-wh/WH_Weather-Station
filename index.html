@@ -113,6 +113,30 @@
     Notification.requestPermission();
   }
 
+  // ✅ Browser notification function
+  function sendRainNotification() {
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification("🌧 Rain Detected!", {
+          body: "Rain has been detected by the ESP32 Weather Station.",
+          icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png"
+        });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            new Notification("🌧 Rain Detected!", {
+              body: "Rain has been detected by the ESP32 Weather Station.",
+              icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png"
+            });
+          }
+        });
+      }
+    } else {
+      console.log("❌ This browser does not support notifications.");
+    }
+  }
+
+  // ✅ Email notification
   function sendRainEmail() {
     fetch("https://wh-weather-station.onrender.com/send-email", {
       method: "POST",
@@ -127,16 +151,27 @@
     .catch(err => console.error("❌ Email Error:", err));
   }
 
+  // ---- Test Rain Simulation with Auto Reset ----
   function testRain() {
     document.getElementById("rain").innerText = "🌧 Yes (Test)";
     latestRain = 1;
-    sendRainNotification();  // Browser notification
-    sendRainEmail();         // 📧 Gmail notification
+    sendRainNotification();  // 🔔 Browser notification
+    sendRainEmail();         // 📧 Email
     console.log("✅ Test Rain triggered manually");
 
-    // Auto reset logic...
-  }
+    const btn = document.querySelector("button[onclick='testRain()']");
+    btn.disabled = true;
+    btn.innerText = "🌧 Testing...";
 
+    setTimeout(() => {
+      document.getElementById("rain").innerText = "☀️ No (Normal)";
+      latestRain = 0;
+      console.log("☀️ Test Rain reset back to normal");
+
+      btn.disabled = false;
+      btn.innerText = "🌧 Test Rain";
+    }, 5000);
+  }
 
   // ---- Chart.js Setup ----
   function createChart(ctx, label, color) {
@@ -172,7 +207,7 @@
       case "esp32/pressure": latestPressure = parseFloat(value); document.getElementById("pressure").innerText = value+" hPa"; break;
       case "esp32/rain":
         document.getElementById("rain").innerText = (value=="0") ? "🌧 Yes" : "☀️ No";
-        if (value=="0") { latestRain=1; sendRainNotification(); } else latestRain=0;
+        if (value=="0") { latestRain=1; sendRainNotification(); sendRainEmail(); } else latestRain=0;
         break;
       case "esp32/windspeed": latestWind=parseFloat(value); document.getElementById("windspeed").innerText=value+" m/s"; break;
       case "esp32/winddir": document.getElementById("winddir").innerText=value+" °"; break;
@@ -228,31 +263,6 @@
     else { statusEl.innerText="Offline"; dotEl.style.background="red"; }
   }
 
-  // ---- Test Rain Simulation with Auto Reset ----
-  function testRain() {
-    // Simulate rain detected
-    document.getElementById("rain").innerText = "🌧 Yes (Test)";
-    latestRain = 1;
-    sendRainNotification();  // 🔔 trigger notification
-    console.log("✅ Test Rain triggered manually");
-
-  // Disable button temporarily
-    const btn = document.querySelector("button[onclick='testRain()']");
-    btn.disabled = true;
-    btn.innerText = "🌧 Testing...";
-
-  // Auto reset back to normal after 5 seconds
-    setTimeout(() => {
-      document.getElementById("rain").innerText = "☀️ No (Normal)";
-      latestRain = 0;
-      console.log("☀️ Test Rain reset back to normal");
-
-      // Re-enable button
-      btn.disabled = false;
-      btn.innerText = "🌧 Test Rain";
-    }, 5000);
-  }
-
   function updateRainDuration() {
     const now=new Date();
     const THIRTY_MIN=30*60*1000;
@@ -283,8 +293,3 @@
 </script>
 </body>
 </html>
-
-
-
-
-
