@@ -22,10 +22,10 @@ app.post("/send-email", (req, res) => {
   const { subject, message } = req.body;
 
   let mailOptions = {
-    from: '"ESP32 Leak Sensor" <khorshanshan@gmail.com>',
-    to: "khorshanshan@gmail.com",         //recipient email
-    subject: subject || "ESP32 Leak Alert",
-    text: message || "Leak detected from ESP32!"
+    from: '"ESP32 Rain Sensor" <wooihong0185@gmail.com>',
+    to: "wooihong0185@gmail.com",         //recipient email
+    subject: subject || "ESP32 Rain Alert",
+    text: message || "Rain detected from ESP32!"
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
@@ -37,14 +37,13 @@ app.post("/send-email", (req, res) => {
     res.json({ success: true, info });
   });
 });
-
++++
 // 🚀 Use Render's port or fallback to 3000 for local
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(✅ Server running on port ${PORT});
 });
-
 
 
 
